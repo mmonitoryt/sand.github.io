@@ -1,6 +1,7 @@
     <!DOCTYPE html>
     <html>
     <head>
+        <title>Sand's Site</title>
         <style>
             body {
                 background-color: #000000
@@ -21,4 +22,111 @@
       <p class="defaultText">Title</p>
       <p class="defaultText">Body Text</p>
     </body>
+    <script>
+(function(){
+  // Create a full-window canvas (no external CSS)
+  const canvas = document.createElement('canvas');
+  document.body.style.margin = '0'; // tiny inline housekeeping
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  // Resize canvas to window size
+  function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Config - tweak these to change the look
+  const scanlineHeight = 2;        // height of each scanline in px
+  const gap = 2;                   // gap between lines in px
+  const speed = 30;                // pixels per second the scanlines roll
+  const noiseIntensity = 0.08;     // 0..1 variation per line
+  const flickerFreq = 0.9;         // flicker speed
+  const bgColor = '#020204';       // near-black background
+  const lineColor = '#9bd7ff';     // base color of scanlines
+
+  let offset = 0;
+  let last = performance.now();
+
+  function draw(now){
+    const dt = (now - last) / 1000;
+    last = now;
+    offset += speed * dt;
+    // keep offset bounded
+    const cycle = scanlineHeight + gap;
+    offset = offset % cycle;
+
+    // paint background
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // small global flicker (simulates power variation)
+    const flicker = 0.85 + 0.15 * Math.sin(now * 0.001 * flickerFreq * Math.PI * 2);
+
+    // draw scanlines
+    const rows = Math.ceil(canvas.height / cycle) + 1;
+    for (let r = -1; r < rows; r++){
+      // y position for this logical line, with vertical rolling by offset
+      const y = r * cycle + ( -offset );
+
+      // slight per-line horizontal shimmer / noise
+      const noise = (Math.sin((r * 13.7) + now * 0.002) * 0.5 + 0.5) * noiseIntensity;
+
+      // line alpha varies across the canvas height a bit to simulate glow
+      const centerDist = Math.abs((y + scanlineHeight/2) - canvas.height/2);
+      const v = 1 - Math.min(1, centerDist / (canvas.height * 0.6)); // 0..1
+      const alpha = 0.06 + 0.18 * v + 0.06 * noise; // base alpha per line
+
+      // draw a filled rectangle for the scanline
+      ctx.globalAlpha = Math.max(0, Math.min(1, alpha * flicker));
+      // slight horizontal shift to create shimmer
+      const xShift = Math.floor((Math.sin((r * 7.3) + now * 0.001) * 2) * (1 + noise));
+      ctx.fillStyle = lineColor;
+      ctx.fillRect(xShift, Math.round(y), canvas.width, scanlineHeight);
+
+      // optional thin highlight inside line for "glow"
+      ctx.globalAlpha = Math.max(0, Math.min(1, alpha * 0.25 * flicker));
+      ctx.fillRect(xShift, Math.round(y + scanlineHeight * 0.25), canvas.width, Math.max(1, Math.floor(scanlineHeight * 0.5)));
+    }
+
+    // subtle vignette to darken edges (simple gradient)
+    ctx.globalAlpha = 0.45;
+    const g = ctx.createRadialGradient(canvas.width/2, canvas.height/2, Math.min(canvas.width, canvas.height)*0.1,
+                                       canvas.width/2, canvas.height/2, Math.max(canvas.width, canvas.height)*0.9);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.7)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // reset alpha before next frame
+    ctx.globalAlpha = 1;
+
+    requestAnimationFrame(draw);
+  }
+
+  requestAnimationFrame(draw);
+
+  // Optional: allow toggling speed with keyboard for demos
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp') { // faster
+      window.location.hash = 'speed+'; // tiny visual sign in URL bar
+      // increase speed
+      // clamp to reasonable range
+      const s = Math.min(800, speedDisplay() + 20);
+      setSpeed(s);
+    } else if (e.key === 'ArrowDown') { // slower
+      const s = Math.max(0, speedDisplay() - 20);
+      setSpeed(s);
+    }
+  });
+
+  // helpers to allow changing speed from console
+  function setSpeed(v){ window._crt_speed = v; Object.defineProperty(window, '_crt_speed', {value:v,writable:true}); }
+  function speedDisplay(){ return window._crt_speed || speed; }
+  // expose a couple of vars for on-the-fly tweaking in dev tools
+  window._crt = { canvas, ctx, setSpeed, speed: () => speedDisplay() };
+})();
+</script>
     </html>
